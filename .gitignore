@@ -1,0 +1,7 @@
+# build artifacts
+/wspr
+/wspr.app/
+wspr-*.dmg
+
+# local Claude Code settings
+.claude/settings.local.json
