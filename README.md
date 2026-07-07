@@ -28,13 +28,14 @@ Run `wspr models` for the full curated list with stats.
 
 - macOS on Apple Silicon
 - [Go](https://go.dev/dl/) 1.26+ (to build)
-- `ffmpeg` for microphone capture: `brew install ffmpeg`
 - The runner for your chosen engine (below)
+
+Microphone capture is built in (CoreAudio via
+[miniaudio](https://github.com/mackron/miniaudio)) — no ffmpeg needed.
 
 ## Install
 
 ```sh
-brew install ffmpeg
 uv tool install parakeet-mlx        # default engine (or: pip install parakeet-mlx)
 make install                        # builds and installs to ~/.local/bin
 ```
@@ -99,7 +100,7 @@ wspr version        print version
 | `--engine` | `parakeet` | `parakeet` or `whisper` |
 | `--model` | — | model for the active engine |
 | `--language` | auto | whisper language hint, e.g. `en` |
-| `--mic` | `:0` | avfoundation audio device |
+| `--mic` | auto | input device name (see `wspr devices`) |
 | `--no-paste` | | copy to clipboard only |
 | `--no-sounds` | | disable sound feedback |
 | `--save` | | persist the given flags to the config file and exit |
@@ -114,8 +115,8 @@ keys as you press them and locks the combo the moment you release a key.
 
 1. A global hotkey (an `NSEvent` monitor, gated by Accessibility) starts/stops
    recording.
-2. `ffmpeg` captures the mic to a temp 16 kHz mono WAV, and streams live RMS
-   levels over a side pipe that drives the waveform pill.
+2. The mic is captured in-process (CoreAudio via miniaudio) to a temp 16 kHz
+   mono WAV; a live frequency spectrum of the audio drives the waveform pill.
 3. On release, the selected local engine (`parakeet-mlx` or `whisper-cpp`)
    transcribes the WAV — entirely offline.
 4. The text is pasted into the focused app with Cmd+V — wspr saves and

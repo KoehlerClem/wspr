@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/binary"
-	"io"
 	"math"
-	"os"
 )
 
 // numBands is how many frequency bands the spectrum is reduced to — one per bar
@@ -15,26 +13,24 @@ const numBands = 17
 // a 16 ms window, giving ~62 Hz frequency resolution and ~60 updates/second.
 const fftSize = 256
 
-// readSpectrum reads the raw 16-bit PCM that ffmpeg streams on the side pipe,
-// and reports, for each short window, a frequency spectrum reduced to numBands
-// values in 0..1. It drains the pipe so ffmpeg never blocks, and returns at EOF.
-func readSpectrum(r *os.File, onSpectrum func([]float64)) {
-	defer r.Close()
-	buf := make([]byte, fftSize*2)
-	samples := make([]float64, fftSize)
-	for {
-		n, err := io.ReadFull(r, buf)
-		if n == len(buf) {
-			for i := 0; i < fftSize; i++ {
-				s := int16(binary.LittleEndian.Uint16(buf[i*2:]))
-				samples[i] = float64(s) / 32768.0
-			}
-			if onSpectrum != nil {
-				onSpectrum(computeBands(samples))
-			}
-		}
-		if err != nil {
-			return
+// spectrumFeed accumulates raw little-endian 16-bit mono PCM and reports, for
+// each fftSize window, a frequency spectrum reduced to numBands values in 0..1.
+type spectrumFeed struct {
+	onSpectrum func([]float64) // may be nil — push then does nothing
+	samples    []float64
+}
+
+// push consumes one chunk of PCM, of any length.
+func (sf *spectrumFeed) push(pcm []byte) {
+	if sf.onSpectrum == nil {
+		return
+	}
+	for i := 0; i+1 < len(pcm); i += 2 {
+		s := int16(binary.LittleEndian.Uint16(pcm[i:]))
+		sf.samples = append(sf.samples, float64(s)/32768.0)
+		if len(sf.samples) == fftSize {
+			sf.onSpectrum(computeBands(sf.samples))
+			sf.samples = sf.samples[:0]
 		}
 	}
 }

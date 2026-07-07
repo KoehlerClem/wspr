@@ -127,9 +127,6 @@ func resolveConfig() (Config, bool) {
 // preflight verifies that the external tools the chosen engine needs are
 // available, exiting with a helpful message if not.
 func preflight(cfg Config) {
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		fatal(fmt.Errorf("ffmpeg not found on PATH — install it with:  brew install ffmpeg"))
-	}
 	switch cfg.Engine {
 	case "parakeet":
 		if _, err := exec.LookPath("parakeet-mlx"); err != nil {
@@ -259,8 +256,8 @@ var guiMode bool
 var logW io.Writer = os.Stdout
 
 // ensurePATH prepends the usual tool directories to PATH. A .app launched from
-// Finder or as a login item inherits only a minimal PATH, so ffmpeg, uv,
-// whisper-cpp and parakeet-mlx would otherwise not be found.
+// Finder or as a login item inherits only a minimal PATH, so uv, whisper-cpp
+// and parakeet-mlx would otherwise not be found.
 func ensurePATH() {
 	home, _ := os.UserHomeDir()
 	path := os.Getenv("PATH")

@@ -63,7 +63,7 @@ func engineLoop(cfg Config, m *menu) {
 		if rec != nil {
 			return
 		}
-		r, err := startRecording(resolveMicArg(cfg.Mic, m.micDevs), overlaySetBands)
+		r, err := startRecording(resolveMicID(cfg.Mic, m.micDevs), overlaySetBands)
 		if err != nil {
 			logErr(err)
 			return
@@ -332,7 +332,7 @@ func process(cfg Config, path string, dur time.Duration, m *menu) {
 	defer os.Remove(path)
 
 	if info, err := os.Stat(path); err != nil || info.Size() < 1024 {
-		logErr(fmt.Errorf("no audio captured — check microphone permission for your terminal"))
+		logErr(fmt.Errorf("no audio captured — check the Microphone permission (for wspr.app, or for your terminal when running the bare binary)"))
 		return
 	}
 
