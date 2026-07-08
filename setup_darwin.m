@@ -51,6 +51,8 @@ static NSWindow        *gWin = nil;
 static WSPRSetupTarget *gTarget = nil;
 static NSTextField     *gIcon[ROWS], *gName[ROWS], *gDesc[ROWS], *gStatus[ROWS];
 static NSButton        *gBtn[ROWS];
+static NSProgressIndicator *gBar[ROWS];
+static NSTextField     *gPct[ROWS];
 static NSButton        *gFooter = nil;
 static NSTextField     *gCaption = nil;
 
@@ -93,11 +95,24 @@ static void addRow(NSView *c, int idx, CGFloat ry) {
     [gBtn[idx] setTarget:gTarget];
     [gBtn[idx] setAction:@selector(row:)];
 
+    // Download progress, shown in place of the button while a fetch runs.
+    gBar[idx] = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(352, ry + 46, 124, 8)];
+    [gBar[idx] setStyle:NSProgressIndicatorStyleBar];
+    [gBar[idx] setMinValue:0.0];
+    [gBar[idx] setMaxValue:100.0];
+    [gBar[idx] setHidden:YES];
+    gPct[idx] = makeLabel(NSMakeRect(352, ry + 26, 124, 16),
+        [NSFont systemFontOfSize:11.0], [NSColor secondaryLabelColor],
+        NO, NSTextAlignmentRight);
+    [gPct[idx] setHidden:YES];
+
     [c addSubview:gIcon[idx]];
     [c addSubview:gName[idx]];
     [c addSubview:gDesc[idx]];
     [c addSubview:gStatus[idx]];
     [c addSubview:gBtn[idx]];
+    [c addSubview:gBar[idx]];
+    [c addSubview:gPct[idx]];
 }
 
 // buildSetupWindow lazily creates the guide window and all its controls.
@@ -167,10 +182,13 @@ void setupClose(void) {
     });
 }
 
-// setupSetRow renders one permission row. An empty btnLabel means the
-// permission is granted: the green status text is shown in place of the button.
+// setupSetRow renders one permission row. progress drives the download UI:
+// -2 = none, -1 = working with unknown percentage (barber pole), 0..100 = a
+// determinate bar. With no download UI, an empty btnLabel means the permission
+// is granted: the green status text is shown in place of the button.
 void setupSetRow(int idx, const char *icon, const char *name, const char *desc,
-                 const char *btnLabel, int btnEnabled, const char *statusText) {
+                 const char *btnLabel, int btnEnabled, const char *statusText,
+                 int progress) {
     if (idx < 0 || idx >= ROWS) return;
     char *cIcon = strdup(icon);
     char *cName = strdup(name);
@@ -183,10 +201,25 @@ void setupSetRow(int idx, const char *icon, const char *name, const char *desc,
         [gName[idx] setStringValue:[NSString stringWithUTF8String:cName]];
         [gDesc[idx] setStringValue:[NSString stringWithUTF8String:cDesc]];
 
-        BOOL granted = (strlen(cBtn) == 0);
-        [gBtn[idx] setHidden:granted];
+        BOOL downloading = (progress >= -1);
+        BOOL granted = (!downloading && strlen(cBtn) == 0);
+        [gBtn[idx] setHidden:(granted || downloading)];
         [gStatus[idx] setHidden:!granted];
-        if (granted) {
+        [gBar[idx] setHidden:!downloading];
+        [gPct[idx] setHidden:!downloading];
+        if (downloading) {
+            if (progress >= 0) {
+                [gBar[idx] stopAnimation:nil];
+                [gBar[idx] setIndeterminate:NO];
+                [gBar[idx] setDoubleValue:(double)progress];
+                [gPct[idx] setStringValue:
+                    [NSString stringWithFormat:@"Downloading… %d%%", progress]];
+            } else {
+                [gBar[idx] setIndeterminate:YES];
+                [gBar[idx] startAnimation:nil];
+                [gPct[idx] setStringValue:@"Preparing…"];
+            }
+        } else if (granted) {
             [gStatus[idx] setStringValue:[NSString stringWithFormat:@"✓  %@",
                 [NSString stringWithUTF8String:cStat]]];
         } else {

@@ -7,16 +7,21 @@ package main
 void setupShow(void);
 void setupClose(void);
 void setupSetRow(int idx, const char *icon, const char *name, const char *desc,
-                 const char *btnLabel, int btnEnabled, const char *statusText);
+                 const char *btnLabel, int btnEnabled, const char *statusText,
+                 int progress);
 void setupSetFooter(const char *label, int enabled, const char *caption);
 */
 import "C"
 
 import (
+	"fmt"
 	"strings"
 	"time"
 	"unsafe"
 )
+
+// noProgress hides a row's download UI; -1 shows an indeterminate bar.
+const noProgress = -2
 
 // Clicks from the setup window, delivered by the C callbacks below.
 var (
@@ -157,11 +162,11 @@ func runSetup(cfg Config, m *menu) {
 		for i, s := range steps {
 			switch {
 			case s.granted():
-				setupRow(i, s.icon, s.name, s.desc, "", false, s.doneLabel)
+				setupRow(i, s.icon, s.name, s.desc, "", false, s.doneLabel, noProgress)
 			case s.busy != nil && s.busy():
-				setupRow(i, s.icon, s.name, s.desc, "Downloading…", false, "")
+				setupRow(i, s.icon, s.name, s.desc, "", false, "", modelDlPercent())
 			default:
-				setupRow(i, s.icon, s.name, s.desc, s.actionLabel(), true, "")
+				setupRow(i, s.icon, s.name, s.desc, s.actionLabel(), true, "", noProgress)
 			}
 		}
 		switch {
@@ -169,6 +174,9 @@ func runSetup(cfg Config, m *menu) {
 			caption := ""
 			if modelDlIs(dlRunning) {
 				caption = "The model keeps downloading in the background."
+				if pct := modelDlPercent(); pct >= 0 {
+					caption = fmt.Sprintf("The model keeps downloading in the background (%d%%).", pct)
+				}
 			}
 			setupFooter("Done", true, caption)
 		case microphoneStatus() == micDenied:
@@ -229,12 +237,14 @@ func finishSetup(cfg Config, m *menu) {
 	}
 }
 
-// setupRow hands one permission row's content to the Cocoa window. An empty
-// btnLabel means the permission is granted: the row shows statusText instead.
-func setupRow(idx int, icon, name, desc, btnLabel string, btnOn bool, status string) {
+// setupRow hands one permission row's content to the Cocoa window. progress
+// (noProgress, -1 indeterminate, or 0..100) shows a download bar in place of
+// the button; otherwise an empty btnLabel means the permission is granted and
+// the row shows statusText instead.
+func setupRow(idx int, icon, name, desc, btnLabel string, btnOn bool, status string, progress int) {
 	ci, cn, cd := C.CString(icon), C.CString(name), C.CString(desc)
 	cb, cs := C.CString(btnLabel), C.CString(status)
-	C.setupSetRow(C.int(idx), ci, cn, cd, cb, cbool(btnOn), cs)
+	C.setupSetRow(C.int(idx), ci, cn, cd, cb, cbool(btnOn), cs, C.int(progress))
 	for _, p := range []*C.char{ci, cn, cd, cb, cs} {
 		C.free(unsafe.Pointer(p))
 	}

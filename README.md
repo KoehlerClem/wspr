@@ -128,6 +128,7 @@ Cocoa (via cgo); everything else is Go.
 
 ## Notes
 
-- The first Parakeet run downloads the model (~600 MB) — slow once, then fast.
+- The first Parakeet run downloads the model (~2.5 GB) — slow once, then fast.
+  The setup guide and the menu-bar icon show the download progress.
 - Very short presses (<0.4s) are ignored.
 - Config and history live in `~/.config/wspr/`.
