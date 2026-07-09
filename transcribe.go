@@ -32,7 +32,9 @@ func transcribeParakeet(cfg Config, audioPath string) (string, error) {
 
 // transcribeParakeetCold runs the parakeet-mlx CLI, which reloads the model on
 // every call. parakeet-mlx writes output files, so we point it at a fresh temp
-// directory and read back whatever .txt file it produces.
+// directory and read back whatever .txt file it produces. Unlike the warm
+// worker, the CLI decodes audio through its own ffmpeg-based loader, so this
+// last-resort path still needs ffmpeg installed.
 func transcribeParakeetCold(cfg Config, audioPath string) (string, error) {
 	outDir, err := os.MkdirTemp("", "wspr-parakeet-")
 	if err != nil {

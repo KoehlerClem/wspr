@@ -14,10 +14,36 @@ import (
 // parakeetWorkerScript is a tiny Python program that loads a Parakeet model
 // once and then transcribes file paths fed on stdin, one JSON line per result.
 // Keeping the model resident avoids the ~1.2s reload the CLI pays every call.
+//
+// parakeet-mlx's own load_audio shells out to ffmpeg, which wspr no longer
+// requires. wspr always records 16 kHz mono s16 WAV — exactly the format the
+// model wants — so the loader is replaced with a stdlib WAV reader; anything
+// unexpected falls back to the original ffmpeg path. parakeet.py imports
+// load_audio by name, so its binding is patched too.
 const parakeetWorkerScript = `
-import sys, json
+import sys, json, wave
 try:
+    import numpy as np
+    import mlx.core as mx
     from parakeet_mlx import from_pretrained
+    from parakeet_mlx import audio as _pa
+    from parakeet_mlx import parakeet as _pk
+
+    _ffmpeg_load = _pa.load_audio
+
+    def _load_audio(path, rate, dtype=mx.bfloat16):
+        try:
+            with wave.open(str(path), "rb") as w:
+                if (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, rate):
+                    pcm = w.readframes(w.getnframes())
+                    return mx.array(np.frombuffer(pcm, np.int16)).astype(mx.float32) / 32768.0
+        except Exception:
+            pass
+        return _ffmpeg_load(path, rate, dtype)
+
+    _pa.load_audio = _load_audio
+    _pk.load_audio = _load_audio
+
     model = from_pretrained(sys.argv[1])
 except Exception as e:
     print(json.dumps({"error": "load: " + str(e)}), flush=True)
